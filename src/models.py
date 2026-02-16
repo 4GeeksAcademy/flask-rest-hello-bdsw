@@ -41,7 +41,7 @@ class Favorite(Base):
 
 try:
     result = render_er(Base, 'diagram.png')
-    print("Todo bien 👍 - revisá el diagram.png")
+    print("Todo bien")
 except Exception as e:
-    print("Upa, algo salió mal:")
+    print("error:")
     print(e)
