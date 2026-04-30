@@ -1,47 +1,94 @@
-from sqlalchemy import Column, ForeignKey, Integer, String, Boolean
-from sqlalchemy.orm import relationship, declarative_base
-from eralchemy2 import render_er
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import String, Boolean, Table, Column, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-Base = declarative_base()
+db = SQLAlchemy()
 
-class User(Base):
-    __tablename__ = 'user'
-    id = Column(Integer, primary_key=True)
-    username = Column(String(50), unique=True, nullable=False)
-    email = Column(String(120), unique=True, nullable=False)
-    password = Column(String(255), nullable=False)
-    is_active = Column(Boolean, default=True)
-    favorites = relationship("Favorite", back_populates="user")
+favorite_table = Table(
+    "favorite",
+    db.Model.metadata,
+    Column("user_id", ForeignKey("user.id"), primary_key=True),
+    Column("character_id", ForeignKey("character.id"), primary_key=True)
+)
 
-class Character(Base):
-    __tablename__ = 'character'
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
-    gender = Column(String(20))
-    homeworld = Column(String(100))
-    favorites = relationship("Favorite", back_populates="character")
+favoriteLocation_table = Table(
+    "favoriteLocation",
+    db.Model.metadata,
+    Column("user_id", ForeignKey("user.id"), primary_key=True),
+    Column("location_id", ForeignKey("locations.id"), primary_key=True)
+)
 
-class Planet(Base):
-    __tablename__ = 'planet'
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
-    climate = Column(String(100))
-    terrain = Column(String(100))
-    favorites = relationship("Favorite", back_populates="planet")
 
-class Favorite(Base):
-    __tablename__ = 'favorite'
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
-    character_id = Column(Integer, ForeignKey('character.id'), nullable=True)
-    planet_id = Column(Integer, ForeignKey('planet.id'), nullable=True)
-    user = relationship("User", back_populates="favorites")
-    character = relationship("Character", back_populates="favorites")
-    planet = relationship("Planet", back_populates="favorites")
+class User(db.Model):
 
-try:
-    result = render_er(Base, 'diagram.png')
-    print("Todo bien")
-except Exception as e:
-    print("error:")
-    print(e)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    password: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    favorites: Mapped[list["Character"]] = relationship(
+        "Character",
+        secondary=favorite_table,
+        back_populates="favorite_by"
+    )
+
+    favorite_locations: Mapped[list["Locations"]] = relationship(
+        "Locations",
+        secondary=favoriteLocation_table,
+        back_populates="favorite_by"
+    )
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "email": self.email,
+            "favorites": [character.serialize() for character in self.favorites],
+            "favorite_locations": [locations.serialize() for locations in self.favorite_locations]
+        }
+
+
+class Character(db.Model):
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    quote: Mapped[str] = mapped_column(String(120), nullable=False)
+    image: Mapped[str] = mapped_column(String(120), nullable=True)
+
+    favorite_by: Mapped[list["User"]] = relationship(
+        "User",
+        secondary=favorite_table,
+        back_populates="favorites"
+    )
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "quote": self.quote,
+            "image": self.image,
+            # do not serialize the password, its a security breach
+        }
+
+
+class Locations (db.Model):
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    image: Mapped[str] = mapped_column(String(120), nullable=True)
+    town: Mapped[str] = mapped_column(String(120), nullable=True)
+    use: Mapped[str] = mapped_column(String(120), nullable=True)
+
+    favorite_by: Mapped[list["User"]] = relationship(
+        "User",
+        secondary=favoriteLocation_table,
+        back_populates="favorite_locations"
+    )
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "image": self.image,
+            "town": self.town,
+            "use": self.use
+            # do not serialize the password, its a security breach
+        }
